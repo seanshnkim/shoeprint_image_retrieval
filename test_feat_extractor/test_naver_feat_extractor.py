@@ -33,8 +33,6 @@ class TestQueryDataset(Dataset):
 
         return query_idx, gt_query_label
 
-
-# reference 이미지를 폴더에서 뱉는 데이터셋
 class TestRefDataset(Dataset):
     def __init__(self, Config):
         self.ref_dir = Config.ref_test_dir
@@ -69,7 +67,7 @@ BATCH_SIZE_TEST = 1
 test_query_loader = DataLoader(test_query_dataset, batch_size=1, shuffle=False)
 test_ref_loader= DataLoader(test_ref_dataset, batch_size=BATCH_SIZE_TEST, shuffle=False)
 
-labeltable = pd.read_csv(Config().imagelabels)
+labeltable = pd.read_csv(Config().image_labels)
 count_1 = 0
 count_5 = 0
 total = 0
@@ -78,11 +76,9 @@ ONE_PCNT = int(len(test_ref_loader) * 0.01)
 FIVE_PCNT = int(len(test_ref_loader) * 0.05)
 
 logging.basicConfig(filename=f'{__file__}.log', \
-        level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S')
     
 for idx, (query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
-    # test_query_loader에서 201 ~ 300번 사이의 test 이미지 불러오기
-
     dis_label = dict()
 
     top1_distance_list = list()
@@ -90,35 +86,18 @@ for idx, (query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
 
     top5_distance_list = list()
     top5_distance_index = list()
-    
-    logging.info(f"{idx}th query: START calculating distance")
 
-    calc_dist_t = 0
-    clean_t = 0
     with torch.inference_mode():
         # NOTE
         for i, ref_idx in enumerate(range(len(test_ref_loader))):
-            start_t = time()
             euclidean_distance = F.pairwise_distance(query_cropped_feats[query_idx-1, :], ref_feats[ref_idx-1, :]).item()
             dis_label[euclidean_distance] = ref_idx
         
-            middle_t = time()
-            calc_dist_t += middle_t - start_t
-
-            end_t = time()
-            clean_t += end_t - middle_t
-            
-            if i % 100 == 0:
+            if i % 500 == 0:
                 del ref_idx, euclidean_distance
                 gc.collect()
                 torch.cuda.empty_cache()
-                
-                logging.info(f"{idx}th query: {i}th reference: {calc_dist_t} sec for calculating distance, {clean_t} sec for cleaning")
-                calc_dist_t = 0
-                clean_t = 0
-                
-    logging.info(f"{idx}th query: COMPLETE calculating distance")
-    
+
     # Sort by distance
     sorted_dislabel=sorted(dis_label.items(),key=lambda x:x[0])
 
@@ -129,24 +108,23 @@ for idx, (query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
     for (i, j) in sorted_dislabel[:FIVE_PCNT]:
         top5_distance_list.append(i)
         top5_distance_index.append(j)
-    print("query_number: {}, gt_query_label:{}".format(query_idx, gt_label))
 
-    print(top1_distance_list)
-    print(top1_distance_index)
+    # print(top5_distance_list)
+    # print(top5_distance_index)
 
-    print(top5_distance_list)
-    print(top5_distance_index)
-
-    if gt_label in top1_distance_index : count_1 += 1
-    if gt_label in top5_distance_index : count_5 += 1
+    if gt_label in top1_distance_index:
+        count_1 += 1
+    if gt_label in top5_distance_index:
+        count_5 += 1
     total += 1
-
-    print('count_1%: {} / total: {}'.format(count_1, total))
-    print('count_5%: {} / total: {}'.format(count_5, total))
         
-    del gt_label
+    logging.info(f"query_number: {query_idx.item()}, gt_query_label:{gt_label.item()}")
+    logging.info(f"top 1 distance index: {top1_distance_index}")
+    logging.info(f"top 5 distance index: {top5_distance_index}")
+    logging.info(f'count top 1% accuracy: {count_1} / total: {total}')
+    logging.info(f'count top 5% accuracy: {count_5} / total: {total}\n')
     
-    gc.collect()
-    torch.cuda.empty_cache()
-    
-    logging.info(f"{idx}th query: COMPLETE cleaning")
+    if idx % 10 == 0:
+        del gt_label
+        gc.collect()
+        torch.cuda.empty_cache()
