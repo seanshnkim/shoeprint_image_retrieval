@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import random
 from PIL import Image
 
@@ -34,6 +35,7 @@ class TrainDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
+        self.loss_function = config.loss_function
         self.data_dir = config.query_train_path
         self.data_list = os.listdir(self.data_dir)
         
@@ -42,31 +44,60 @@ class TrainDataset(DefaultDataset):
         
     def __len__(self):
         return super().__len__()
+    
         
     def __getitem__(self, idx):
         query_img, query_idx = super().__getitem__(idx)
         gt_query_label = int(self.label_table[self.label_table.cropped == query_idx]['gt'].item())
         
-        ref_version = random.choice([-1, 0, 1])
-        if ref_version == -1:
-            positive_ref_img = Image.open(os.path.join(self.ref_dir, \
-                '{0:05d}'.format(gt_query_label) +'.png'))
+        #FIXME - Needs to be refactored
+        if self.loss_function == 'contrastive':
+            should_get_same_class = random.randint(0, 1)
+            
+            if should_get_same_class:
+                ref_version = random.choice([-1, 0, 1])
+                if ref_version == -1:
+                    ref_img = Image.open(os.path.join(self.ref_dir, \
+                        '{0:05d}'.format(gt_query_label) +'.png'))
+                else:
+                    ref_img = Image.open(os.path.join(self.ref_dir, \
+                        '{0:05d}'.format(gt_query_label) + '_' + str(ref_version) + '.jpg'))
+                
+                ref_label = gt_query_label
+                
+            else:
+                while True:
+                    ref = random.choice(self.ref_data_list)
+                    ref_label = int(ref.split('.')[0].split('_')[0])
+                    if gt_query_label != ref_label:
+                        ref_img = Image.open(os.path.join(self.ref_dir, ref))
+                        break
+            
+            ref_img = self.transform(ref_img).to(device)
+            
+            return query_img, ref_img, torch.from_numpy(np.array([int(gt_query_label != ref_label)],dtype=np.float32))
+
+        # If triplet loss
         else:
-            positive_ref_img = Image.open(os.path.join(self.ref_dir, \
-                '{0:05d}'.format(gt_query_label) + '_' + str(ref_version) + '.jpg'))
-
-        while True:
-            ref = random.choice(self.ref_data_list)
-            negative_ref_label = int(ref.split('.')[0].split('_')[0])
-            if gt_query_label != negative_ref_label:
-                negative_ref_img = Image.open(os.path.join(self.ref_dir, ref))
-                break
-        
-        positive_ref_img = self.transform(positive_ref_img).to(device)
-        negative_ref_img = self.transform(negative_ref_img).to(device)
-        
-        return query_img, positive_ref_img, negative_ref_img
-
+            ref_version = random.choice([-1, 0, 1])
+            if ref_version == -1:
+                positive_ref_img = Image.open(os.path.join(self.ref_dir, \
+                    '{0:05d}'.format(gt_query_label) +'.png'))
+            else:
+                positive_ref_img = Image.open(os.path.join(self.ref_dir, \
+                    '{0:05d}'.format(gt_query_label) + '_' + str(ref_version) + '.jpg'))
+            
+            while True:
+                ref = random.choice(self.ref_data_list)
+                negative_ref_label = int(ref.split('.')[0].split('_')[0])
+                if gt_query_label != negative_ref_label:
+                    negative_ref_img = Image.open(os.path.join(self.ref_dir, ref))
+                    break
+            
+            positive_ref_img = self.transform(positive_ref_img).to(device)
+            negative_ref_img = self.transform(negative_ref_img).to(device)
+            
+            return query_img, positive_ref_img, negative_ref_img
 
 
 class TestQueryDataset(DefaultDataset):

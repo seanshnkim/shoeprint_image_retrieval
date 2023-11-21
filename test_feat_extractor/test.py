@@ -8,26 +8,29 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
+import torchvision.models as models
 
 import logging
 
 from config import Config
 from loss import ContrastiveLoss
 from dataset import TestQueryDataset, TestRefDataset
+from nets.siamese_net import SiameseNetwork
 from utils import set_device
 
 device = set_device()
 torch.manual_seed(1000)
 
 # Choose loss function
-loss_type = "triplet" # contrastive or triplet
-# choose which model ckpt to load
-ckpt_path = ""
+loss_type = "contrastive" # contrastive or triplet
+cfg = Config(loss=loss_type, working_dir="test_feat_extractor")
 
-cfg = Config(loss="loss_type", working_dir="test_feat_extractor")
+# choose which model ckpt to load
+ckpt_path = os.path.join(cfg.working_dir, "checkpoints", 'contrastive_11-21_1644.pt')
+
 model_hps = cfg.get_model_hyperparameters()
-train_hps = cfg.get_training_hyperparameters()
+train_hps = cfg.get_training_hyperparameters(option=1)
 
 save = []
 for obj in gc.get_objects():
@@ -55,13 +58,24 @@ if __name__ == "__main__":
         level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
     logging.info(f"Model Hyperparameters: {model_hps}\n")
     logging.info(f"Training Hyperparameters: {train_hps}\n")
+    logging.info(f"Loaded model checkpoint: {ckpt_path}\n")
 
     if cfg.loss_function == "triplet":
         loss_fn = nn.TripletMarginLoss(margin=train_hps["margin"], p=2)
     else:
         loss_fn = ContrastiveLoss(margin=train_hps["margin"])
     
-    model = torch.load("triplet_05-06_2205.pt")
+    if model_hps["model_name"] == "resnet50":
+        resnet = models.resnet50(weights='ResNet50_Weights.IMAGENET1K_V2')
+    else:
+        resnet = models.resnet101(weights='ResNet101_Weights.IMAGENET1K_V2')
+
+    embedding_network = nn.Sequential(*list(resnet.children())[:model_hps["end_layer"]]).to(device)
+    model = SiameseNetwork(embedding_network, end_layer=model_hps["end_layer"], embdim=model_hps["embedding_dim"]).to(device)
+    
+    model_ckpt = torch.load(ckpt_path)
+    model.load_state_dict(model_ckpt)
+    
     model.eval()
     count_1 = 0
     count_5 = 0

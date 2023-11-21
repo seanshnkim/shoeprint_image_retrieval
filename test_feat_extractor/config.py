@@ -20,10 +20,6 @@ class Config:
             return {"end_layer": 7,
                     "embedding_dim": 500,
                     "model_name": "resnet50"}
-        else:
-            return {"end_layer": 7,
-                    "embedding_dim": 500,
-                    "model_name": "resnet50"}
     
     
     def get_training_hyperparameters(self, option=0):
@@ -37,15 +33,16 @@ class Config:
                 "learning_rate": 0.0001,
                 "optimizer": "Adam",
                 "step_size": 5,
-                "gamma": 0.5}
-        else:
-            return {
-                "batch_size": 128,
-                "epochs": 300,
-                "early_stopping": 15,
-                "margin": 5.0,
-                "learning_rate": 0.0001,
-                "optimizer": "Adam",
-                "step_size": 5,
                 "gamma": 0.5
             }
+        # Result 102
+        elif option == 1:
+            return {
+                "batch_size": 16,
+                "epochs": 300,
+                "early_stopping": 15,
+                "margin": 2.0,
+                "learning_rate": 0.001,
+                "optimizer": "Adam",
+                "step_size": 50,
+                "gamma": 0.5}

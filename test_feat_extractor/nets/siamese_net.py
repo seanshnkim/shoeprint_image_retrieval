@@ -32,9 +32,4 @@ class SiameseNetwork(nn.Module):
         return output
 
     def forward(self, *inputs):
-        input1, input2, input3 = inputs
-        output1 = self.forward_once(input1)
-        output2 = self.forward_once(input2)
-        output3 = self.forward_once(input3)
-        
-        return output1, output2, output3
+        return [self.forward_once(x) for x in inputs]

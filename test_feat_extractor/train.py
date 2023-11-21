@@ -26,24 +26,25 @@ def train_per_epoch(model, dataloader, loss_fn, optimizer):
     model.zero_grad()
     
     for i, data in enumerate(dataloader, 0):
-        imgs = (img.to(device) for img in data)
+        imgs = [img.to(device) for img in data]
         
         optimizer.zero_grad()
         
         if type(loss_fn) == nn.TripletMarginLoss:
             anchor, pos, neg = imgs
             outputs = model(anchor, pos, neg)
+            loss = loss_fn(*outputs)
         else:
             # Contrastive Loss
-            pos, neg = imgs[:2]
+            pos, neg, label = imgs
             outputs = model(pos, neg)
+            loss = loss_fn(*outputs, label)
         
         del imgs
         if i % 100 == 0:
             gc.collect()
             torch.cuda.empty_cache()
 
-        loss = loss_fn(*outputs)
         loss.backward()
         optimizer.step()
 
@@ -63,17 +64,18 @@ def valid_per_epoch(model, dataloader, loss_fn):
     model.eval()
     with torch.inference_mode():
         for i, data in enumerate(dataloader):
-            imgs = (img.to(device) for img in data)
+            imgs = [img.to(device) for img in data]
             
             if type(loss_fn) == nn.TripletMarginLoss:
                 anchor, pos, neg = imgs
                 outputs = model(anchor, pos, neg)
+                loss = loss_fn(*outputs)
             else:
                 # Contrastive Loss
-                pos, neg = imgs[:2]
+                pos, neg, label = imgs
                 outputs = model(pos, neg)
+                loss = loss_fn(*outputs, label)
             
-            loss = loss_fn(*outputs)
             valid_loss += loss.item()
 
             del loss, outputs
@@ -87,11 +89,11 @@ def valid_per_epoch(model, dataloader, loss_fn):
 
 if __name__ == "__main__":
     # Choose loss function
-    loss_type = "triplet" # contrastive or triplet
+    loss_type = "contrastive" # contrastive or triplet
     
     cfg = Config(loss=loss_type, working_dir="test_feat_extractor")
     model_hps = cfg.get_model_hyperparameters()
-    train_hps = cfg.get_training_hyperparameters()
+    train_hps = cfg.get_training_hyperparameters(option=1)
     
     if model_hps["model_name"] == "resnet50":
         resnet = models.resnet50(weights='ResNet50_Weights.IMAGENET1K_V2')
