@@ -7,8 +7,6 @@ import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-from configs.config import Config
-
 torch.manual_seed(1000)
 
 if torch.cuda.is_available():
@@ -21,6 +19,7 @@ else:
 
 class DefaultDataset(Dataset):
     def __init__(self, config):
+        self.data_dir = config.query_test_path
         self.data_list = os.listdir(config.query_test_path)
         self.label_table = pd.read_csv(config.image_labels)
         self.transform = transforms.Compose([transforms.Lambda(lambda img: img.convert('RGB')),
@@ -32,7 +31,7 @@ class DefaultDataset(Dataset):
     def __getitem__(self, idx):
         sample = self.data_list[idx]
         sample_idx = int(sample.split('.')[0])
-        sample_img = Image.open(os.path.join(self.ref_dir, sample))
+        sample_img = Image.open(os.path.join(self.data_dir, sample))
         sample_img = self.transform(sample_img).to(device)
 
         return sample_img, sample_idx
@@ -43,14 +42,14 @@ class TrainDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.query_dir = config.query_train_path
-        self.data_list = os.listdir(self.query_dir)
+        self.data_dir = config.query_train_path
+        self.data_list = os.listdir(self.data_dir)
         
         self.ref_dir = config.ref_train_path
         self.ref_data_list = os.listdir(self.ref_dir)
         
     def __len__(self):
-        super().__len__()
+        return super().__len__()
         
     def __getitem__(self, idx):
         query_img, query_idx = super().__getitem__(idx)
@@ -82,11 +81,11 @@ class TestQueryDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.query_dir = config.query_test_path
-        self.data_list = os.listdir(self.query_dir)
+        self.data_dir = config.query_test_path
+        self.data_list = os.listdir(self.data_dir)
         
     def __len__(self):
-        super().__len__()
+        return super().__len__()
     
     def __getitem__(self, idx):
         query_img, query_idx = super().__getitem__(idx)
@@ -95,16 +94,15 @@ class TestQueryDataset(DefaultDataset):
         return query_img, query_idx, gt_query_label
 
 
-
-class TestRefDataset(Dataset):
+class TestRefDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.ref_dir = config.ref_test_path
-        self.data_list = os.listdir(self.ref_dir)
+        self.data_dir = config.ref_test_path
+        self.data_list = os.listdir(self.data_dir)
         
     def __len__(self):
-        super().__len__()
+        return super().__len__()
     
     def __getitem__(self, idx):
-        super().__getitem__(idx)
+        return super().__getitem__(idx)

@@ -1,6 +1,7 @@
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
+
+from time import strftime, gmtime
 
 from pytorchtools import EarlyStopping
 
@@ -24,10 +25,10 @@ torch.manual_seed(1000)
 
 if torch.cuda.is_available():
     device='cuda:0'
-    print('현재 가상환경 GPU 사용 가능상태')
+    print('Current environment has an available GPU.')
 else:
     device='cpu'
-    print('GPU 사용 불가능 상태')
+    print('Current environment does not have an available GPU.')
 
 
 triplet_config = Config(loss="triplet", working_dir="test_feat_extractor")
@@ -39,7 +40,7 @@ train_dataset, valid_dataset = random_split(train_valid_dataset, triplet_config.
 train_dataloader = DataLoader(train_dataset, batch_size=train_hps["batch_size"], shuffle=True)
 valid_dataloader = DataLoader(valid_dataset, batch_size=train_hps["batch_size"], shuffle=True)
 
-if model_hps.model_name == "resnet50":
+if model_hps["model_name"] == "resnet50":
     resnet = models.resnet50(weights='ResNet50_Weights.IMAGENET1K_V2')
 else:
     resnet = models.resnet101(weights='ResNet101_Weights.IMAGENET1K_V2')
@@ -53,9 +54,8 @@ loss_fn = nn.TripletMarginLoss(margin=train_hps["margin"], p=2)
 
 Summary(SiameseNetwork(embedding_network).to(device),[(3,100,100),(3,100,100), (3,100,100)])
 
-logging.basicConfig(filename=f'{__file__}.log', \
-        level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S')
-
+logging.basicConfig(filename=f'triplet_{strftime("%m-%d_%H%M", gmtime())}.log', \
+        level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
 
 save = []
 for obj in gc.get_objects():
@@ -120,11 +120,11 @@ def valid_per_epoch(model, dataloader, loss_fn):
     return valid_loss
 
 
-test_query_dataset = TestQueryDataset(Config())
-test_ref_dataset = TestRefDataset(Config())
+test_query_dataset = TestQueryDataset(triplet_config)
+test_ref_dataset = TestRefDataset(triplet_config)
 
-test_query_loader = DataLoader(test_query_dataset, batch_size=1, shuffle=False)
 BATCH_SIZE_TEST = 1
+test_query_loader = DataLoader(test_query_dataset, batch_size=BATCH_SIZE_TEST, shuffle=False)
 test_ref_loader= DataLoader(test_ref_dataset, batch_size=BATCH_SIZE_TEST, shuffle=False)
 
 ONE_PCNT = int(len(test_ref_loader) * 0.01)
@@ -134,10 +134,10 @@ counter = []
 train_loss_history = []
 valid_loss_history = []
 iteration_number= 0
-early_stopping = EarlyStopping(patience=train_hps.early_stopping, verbose = True)
+early_stopping = EarlyStopping(patience=train_hps["early_stopping"], verbose = True)
 
 
-for epoch in range(1, train_hps.epochs + 1):
+for epoch in range(1, train_hps["epochs"] + 1):
     scheduler.step()
     train_loss = train_per_epoch(model, train_dataloader, loss_fn, optimizer)
     valid_loss = valid_per_epoch(model, valid_dataloader, loss_fn)
@@ -155,7 +155,6 @@ for epoch in range(1, train_hps.epochs + 1):
 
 
 model.eval()
-labeltable = pd.read_csv(Config().image_labels)
 count_1 = 0
 count_5 = 0
 total = 0
@@ -177,7 +176,9 @@ for idx, (query_img, query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
                 label = 1
             
             # query_img.shape = torch.Size([1, 3, 100, 100]) / ref_img.shape = torch.Size([1, 3, 100, 100])
-            output1, output2 = model(query_img, ref_img)
+            output1 = model.forward_once(query_img)
+            output2 = model.forward_once(ref_img)
+            
             euclidean_distance = F.pairwise_distance(output1, output2).item()
 
             dis_label[euclidean_distance] = ref_label.item()
