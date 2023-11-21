@@ -8,15 +8,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
 torch.manual_seed(1000)
-
-if torch.cuda.is_available():
-    device='cuda:0'
-    print('Current environment has an available GPU.')
-else:
-    device='cpu'
-    print('Current environment does not have an available GPU.')
-
-
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 class DefaultDataset(Dataset):
     def __init__(self, config):
         self.data_dir = config.query_test_path

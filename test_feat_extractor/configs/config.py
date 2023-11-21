@@ -14,7 +14,7 @@ class Config:
         
         
     def get_model_hyperparameters(self, option=0):
-        #FIXME - add more options
+        #REVIEW - add more options
         if option == 0:
             return {"end_layer": 7,
                     "embedding_dim": 500,
@@ -26,7 +26,7 @@ class Config:
     
     
     def get_training_hyperparameters(self, option=0):
-        #FIXME - add more options
+        #REVIEW - add more options
         if option == 0:
             return {
                 "batch_size": 128,
