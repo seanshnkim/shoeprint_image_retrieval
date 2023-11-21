@@ -165,3 +165,7 @@ cython_debug/
 
 # npy file
 *.npy
+
+# checkpoints
+*.ckpt
+*.pt
