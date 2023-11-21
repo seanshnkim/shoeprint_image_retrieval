@@ -3,6 +3,7 @@ import os
 class Config:
     def __init__(self, loss, working_dir="", train_val_split=[0.8, 0.2]):
         self.loss_function = loss
+        self.working_dir = working_dir
         self.image_labels = os.path.join(working_dir, "label_table.csv")
         self.train_val_split = train_val_split
         

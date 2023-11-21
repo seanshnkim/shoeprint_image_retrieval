@@ -8,15 +8,16 @@ from pytorchtools import EarlyStopping
 import os
 import gc
 import logging
-from time import strftime, gmtime
+from time import strftime, localtime
 
-from configs.config import Config
+from config import Config
 from loss import ContrastiveLoss
 from nets.siamese_net import SiameseNetwork
-from datasets.dataset import TrainDataset
+from dataset import TrainDataset
 from utils import set_device
 
 device = set_device()
+torch.manual_seed(1000)
 
 def train_per_epoch(model, dataloader, loss_fn, optimizer):
     train_loss = 0.0
@@ -108,8 +109,9 @@ if __name__ == "__main__":
     optimizer = optim.Adam(params=model.parameters(), lr=train_hps["learning_rate"])
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=train_hps["step_size"], gamma=train_hps["gamma"])
     
-    start_time_stamp = strftime("%m-%d_%H%M", gmtime())
-    logging.basicConfig(filename=f'{loss_type}_train_{start_time_stamp}.log', \
+    start_time_stamp = strftime("%m-%d_%H%M", localtime())
+    log_save_dir = os.path.join(cfg.working_dir, 'logs', f'{loss_type}_train_{start_time_stamp}.log')
+    logging.basicConfig(filename=log_save_dir, \
         level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
     logging.info(f"Model Hyperparameters: {model_hps}\n")
     logging.info(f"Training Hyperparameters: {train_hps}\n")
@@ -118,7 +120,7 @@ if __name__ == "__main__":
     train_loss_history = []
     valid_loss_history = []
     iteration_number= 0
-    ckpt_path = os.path.join("checkpoints", f'{loss_type}_{start_time_stamp}.pt')
+    ckpt_path = os.path.join(cfg.working_dir, "checkpoints", f'{loss_type}_{start_time_stamp}.pt')
     early_stopping = EarlyStopping(patience=train_hps["early_stopping"], path=ckpt_path, verbose=True)
     
     train_valid_dataset = TrainDataset(cfg)
