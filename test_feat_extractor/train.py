@@ -1,3 +1,4 @@
+import yaml
 import torch
 from torch import optim
 import torch.nn as nn
@@ -10,7 +11,6 @@ import gc
 import logging
 from time import strftime, localtime
 
-from config import Config
 from loss import ContrastiveLoss
 from nets.siamese_net import SiameseNetwork
 from dataset import TrainDataset
@@ -89,11 +89,13 @@ def valid_per_epoch(model, dataloader, loss_fn):
 
 if __name__ == "__main__":
     # Choose loss function
-    loss_type = "contrastive" # contrastive or triplet
+    loss_type = "triplet" # contrastive or triplet
     
-    cfg = Config(loss=loss_type, working_dir="test_feat_extractor")
-    model_hps = cfg.get_model_hyperparameters()
-    train_hps = cfg.get_training_hyperparameters(option=1)
+    with open('test_feat_extractor/config.yaml', 'r') as file:
+        cfg = yaml.safe_load(file)
+    
+    model_hps = cfg['model_hyperparameters']['option_0']
+    train_hps = cfg['training_hyperparameters']['option_0']
     
     if model_hps["model_name"] == "resnet50":
         resnet = models.resnet50(weights='ResNet50_Weights.IMAGENET1K_V2')
@@ -102,7 +104,7 @@ if __name__ == "__main__":
 
     embedding_network = nn.Sequential(*list(resnet.children())[:model_hps["end_layer"]]).to(device)
 
-    if cfg.loss_function == "triplet":
+    if loss_type == "triplet":
         loss_fn = nn.TripletMarginLoss(margin=train_hps["margin"], p=2)
     else:
         loss_fn = ContrastiveLoss(margin=train_hps["margin"])

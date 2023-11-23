@@ -1,3 +1,4 @@
+import yaml
 import numpy as np
 from tqdm import tqdm
 from time import strftime, localtime
@@ -13,7 +14,6 @@ import torchvision.models as models
 
 import logging
 
-from config import Config
 from loss import ContrastiveLoss
 from dataset import TestQueryDataset, TestRefDataset
 from nets.siamese_net import SiameseNetwork
@@ -23,14 +23,15 @@ device = set_device()
 torch.manual_seed(1000)
 
 # Choose loss function
-loss_type = "contrastive" # contrastive or triplet
-cfg = Config(loss=loss_type, working_dir="test_feat_extractor")
+loss_type = "triplet" # contrastive or triplet
+with open('test_feat_extractor/config.yaml', 'r') as file:
+    cfg = yaml.safe_load(file)
 
 # choose which model ckpt to load
-ckpt_path = os.path.join(cfg.working_dir, "checkpoints", 'contrastive_11-21_1644.pt')
+ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", 'triplet_11-22_0930.pt')
 
-model_hps = cfg.get_model_hyperparameters()
-train_hps = cfg.get_training_hyperparameters(option=1)
+model_hps = cfg['model_hyperparameters']['option_0']
+train_hps = cfg['training_hyperparameters']['option_0']
 
 save = []
 for obj in gc.get_objects():
@@ -53,14 +54,14 @@ FIVE_PCNT = int(len(test_ref_loader) * 0.05)
     
 if __name__ == "__main__":
     start_time_stamp = strftime("%m-%d_%H%M", localtime())
-    log_save_dir = os.path.join(cfg.working_dir, 'logs', f'{loss_type}_test_{start_time_stamp}.log')
+    log_save_dir = os.path.join(cfg["working_dir"], 'logs', f'{loss_type}_test_{start_time_stamp}.log')
     logging.basicConfig(filename=log_save_dir, \
         level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
     logging.info(f"Model Hyperparameters: {model_hps}\n")
     logging.info(f"Training Hyperparameters: {train_hps}\n")
     logging.info(f"Loaded model checkpoint: {ckpt_path}\n")
 
-    if cfg.loss_function == "triplet":
+    if loss_type== "triplet":
         loss_fn = nn.TripletMarginLoss(margin=train_hps["margin"], p=2)
     else:
         loss_fn = ContrastiveLoss(margin=train_hps["margin"])
