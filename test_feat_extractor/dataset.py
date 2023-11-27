@@ -8,12 +8,8 @@ import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-from utils import set_device
-
-device = set_device()
-
 # To reproduce nearly 100% identical results across runs, this code must be inserted.
-SEED = 1000
+SEED = 2023
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 random.seed(SEED)
@@ -23,7 +19,7 @@ torch.backends.cudnn.benchmark = False
 class DefaultDataset(Dataset):
     def __init__(self, config):
         self.data_dir = os.path.join(config["working_dir"], config["query_test_path"])
-        self.data_list = os.listdir(self.data_dir)
+        self.data_list = sorted(os.listdir(self.data_dir))
         self.label_table = pd.read_csv(os.path.join(config["working_dir"], config["image_labels"]))
         self.transform = transforms.Compose([transforms.Lambda(lambda img: img.convert('RGB')),
                                              transforms.Resize((100,100)),
@@ -35,7 +31,7 @@ class DefaultDataset(Dataset):
         sample = self.data_list[idx]
         sample_idx = int(sample.split('.')[0])
         sample_img = Image.open(os.path.join(self.data_dir, sample))
-        sample_img = self.transform(sample_img).to(device)
+        sample_img = self.transform(sample_img)
 
         return sample_img, sample_idx
 
@@ -47,10 +43,10 @@ class TrainDataset(DefaultDataset):
         
         self.loss_function = loss_function
         self.data_dir = os.path.join(config["working_dir"], config["query_train_path"])
-        self.data_list = os.listdir(self.data_dir)
+        self.data_list = sorted(os.listdir(self.data_dir))
         
         self.ref_dir = os.path.join(config["working_dir"], config["ref_train_path"])
-        self.ref_data_list = os.listdir(self.ref_dir)
+        self.ref_data_list = sorted(os.listdir(self.ref_dir))
         
     def __len__(self):
         return super().__len__()
@@ -83,7 +79,7 @@ class TrainDataset(DefaultDataset):
                         ref_img = Image.open(os.path.join(self.ref_dir, ref))
                         break
             
-            ref_img = self.transform(ref_img).to(device)
+            ref_img = self.transform(ref_img)
             
             return query_img, ref_img, torch.from_numpy(np.array([int(gt_query_label != ref_label)],dtype=np.float32))
 
@@ -104,8 +100,8 @@ class TrainDataset(DefaultDataset):
                     negative_ref_img = Image.open(os.path.join(self.ref_dir, ref))
                     break
             
-            positive_ref_img = self.transform(positive_ref_img).to(device)
-            negative_ref_img = self.transform(negative_ref_img).to(device)
+            positive_ref_img = self.transform(positive_ref_img)
+            negative_ref_img = self.transform(negative_ref_img)
             
             return query_img, positive_ref_img, negative_ref_img
 
@@ -118,7 +114,7 @@ class TestQueryDataset(DefaultDataset):
         super().__init__(config)
         
         self.data_dir = os.path.join(config["working_dir"], config["query_test_path"])
-        self.data_list = os.listdir(self.data_dir)
+        self.data_list = sorted(os.listdir(self.data_dir))
         
     def __len__(self):
         return super().__len__()
@@ -135,7 +131,7 @@ class TestRefDataset(DefaultDataset):
         super().__init__(config)
         
         self.data_dir = os.path.join(config["working_dir"], config["ref_test_path"])
-        self.data_list = os.listdir(self.data_dir)
+        self.data_list = sorted(os.listdir(self.data_dir))
         
     def __len__(self):
         return super().__len__()
