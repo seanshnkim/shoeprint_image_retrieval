@@ -5,6 +5,7 @@ from time import strftime, localtime
 import gc
 import os
 import random
+import heapq
 
 import torch
 import torch.nn as nn
@@ -23,7 +24,7 @@ from utils import set_device
 device = set_device()
 
 # To reproduce nearly 100% identical results across runs, this code must be inserted.
-SEED = 1000
+SEED = 2023
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 random.seed(SEED)
@@ -36,7 +37,7 @@ with open('test_feat_extractor/config.yaml', 'r') as file:
     cfg = yaml.safe_load(file)
 
 # choose which model ckpt to load
-ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", 'contrastive_11-27_1102.pt')
+ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", 'contrastive_11-27_1302.pt')
 
 model_hps = cfg['model_hyperparameters']['option_0']
 train_hps = cfg['training_hyperparameters']['option_0']
@@ -53,8 +54,8 @@ print(np.unique(save, return_counts=True))
 test_query_dataset = TestQueryDataset(cfg)
 test_ref_dataset = TestRefDataset(cfg)
 BATCH_SIZE_TEST = 1
-test_query_loader = DataLoader(test_query_dataset, batch_size=BATCH_SIZE_TEST, shuffle=False)
-test_ref_loader= DataLoader(test_ref_dataset, batch_size=BATCH_SIZE_TEST, shuffle=False)
+test_query_loader = DataLoader(test_query_dataset, batch_size=BATCH_SIZE_TEST, shuffle=True)
+test_ref_loader= DataLoader(test_ref_dataset, batch_size=BATCH_SIZE_TEST, shuffle=True)
 
 ONE_PCNT = int(len(test_ref_loader) * 0.01)
 # FIVE_PCNT = int(len(test_ref_loader) * 0.05)
@@ -98,22 +99,11 @@ if __name__ == "__main__":
     count_5 = 0
     total = 0
 
-    for idx, (query_img, query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
-        dis_label = dict()
-
-        top1_distance_list = list()
-        top1_distance_index = list()
-
-        top5_distance_list = list()
-        top5_distance_index = list()
+    for qidx, (query_img, query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
+        top50_list = []
 
         with torch.inference_mode():
             for i, (ref_img, ref_label) in enumerate(test_ref_loader):
-                if ref_label.item() == gt_label.item(): 
-                    label = 0
-                else:
-                    label = 1
-
                 if type(loss_fn) == nn.TripletMarginLoss:
                     output1, output2 = model.forward_once(query_img), model.forward_once(ref_img)
                 else:
@@ -121,36 +111,35 @@ if __name__ == "__main__":
                     output1, output2 = model(query_img, ref_img)
                     
                 euclidean_distance = F.pairwise_distance(output1, output2).item()
-                dis_label[euclidean_distance] = ref_label.item()
+                # dis_label[euclidean_distance] = ref_label.item()
+                if len(top50_list) < FIVE_PCNT:
+                    heapq.heappush(top50_list, (euclidean_distance, ref_label.item()) )
+                else:
+                    heapq.heappushpop(top50_list, (euclidean_distance, ref_label.item()) )
 
                 if i % 500 == 0:
                     del ref_img, ref_label, output1, output2, euclidean_distance
                     gc.collect()
                     torch.cuda.empty_cache()
                     
-        sorted_dislabel = sorted(dis_label.items(),key=lambda x:x[0])
-
-        for (i, j) in sorted_dislabel[:ONE_PCNT]:
-            top1_distance_list.append(i)
-            top1_distance_index.append(j)
+        # sorted_dislabel = sorted(dis_label.items(),key=lambda x:x[0])
+        top1pct_list = heapq.nsmallest(ONE_PCNT, top50_list)
+        top1pct_distance_list, top1pct_distance_index = [i[0] for i in top1pct_list], [i[1] for i in top1pct_list]
+        top50_distance_list, top50_distance_index = [i[0] for i in top50_list], [i[1] for i in top50_list]
         
-        for (i, j) in sorted_dislabel[:FIVE_PCNT]:
-            top5_distance_list.append(i)
-            top5_distance_index.append(j)
-
-        if gt_label in top1_distance_index:
+        if gt_label in top1pct_distance_index:
             count_1 += 1
-        if gt_label in top5_distance_index:
+        if gt_label in top50_distance_index:
             count_5 += 1
         total += 1
             
         logging.info(f"query_number: {query_idx.item()}, gt_query_label:{gt_label.item()}")
-        logging.info(f"top 1% distance index: {top1_distance_index}")
-        logging.info(f"top 50 distance index: {top5_distance_index}")
+        logging.info(f"top 1% distance index: {top1pct_distance_index}")
+        logging.info(f"top 50 distance index: {top50_distance_index}")
         logging.info(f'count top 1% accuracy: {count_1} / total: {total}')
         logging.info(f'count top 50 accuracy: {count_5} / total: {total}\n')
         
-        if idx % 25 == 0:
+        if qidx % 25 == 0:
             del gt_label
             gc.collect()
             torch.cuda.empty_cache()
