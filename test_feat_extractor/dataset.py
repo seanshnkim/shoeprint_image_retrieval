@@ -8,13 +8,23 @@ import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-torch.manual_seed(1000)
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+from utils import set_device
+
+device = set_device()
+
+# To reproduce nearly 100% identical results across runs, this code must be inserted.
+SEED = 1000
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 class DefaultDataset(Dataset):
     def __init__(self, config):
-        self.data_dir = config.query_test_path
-        self.data_list = os.listdir(config.query_test_path)
-        self.label_table = pd.read_csv(config.image_labels)
+        self.data_dir = os.path.join(config["working_dir"], config["query_test_path"])
+        self.data_list = os.listdir(self.data_dir)
+        self.label_table = pd.read_csv(os.path.join(config["working_dir"], config["image_labels"]))
         self.transform = transforms.Compose([transforms.Lambda(lambda img: img.convert('RGB')),
                                              transforms.Resize((100,100)),
                                              transforms.ToTensor()])
@@ -32,14 +42,14 @@ class DefaultDataset(Dataset):
 
 
 class TrainDataset(DefaultDataset):
-    def __init__(self, config):
+    def __init__(self, config, loss_function):
         super().__init__(config)
         
-        self.loss_function = config.loss_function
-        self.data_dir = config.query_train_path
+        self.loss_function = loss_function
+        self.data_dir = os.path.join(config["working_dir"], config["query_train_path"])
         self.data_list = os.listdir(self.data_dir)
         
-        self.ref_dir = config.ref_train_path
+        self.ref_dir = os.path.join(config["working_dir"], config["ref_train_path"])
         self.ref_data_list = os.listdir(self.ref_dir)
         
     def __len__(self):
@@ -78,7 +88,7 @@ class TrainDataset(DefaultDataset):
             return query_img, ref_img, torch.from_numpy(np.array([int(gt_query_label != ref_label)],dtype=np.float32))
 
         # If triplet loss
-        else:
+        elif self.loss_function == 'triplet':
             ref_version = random.choice([-1, 0, 1])
             if ref_version == -1:
                 positive_ref_img = Image.open(os.path.join(self.ref_dir, \
@@ -99,12 +109,15 @@ class TrainDataset(DefaultDataset):
             
             return query_img, positive_ref_img, negative_ref_img
 
+        else:
+            raise NotImplementedError
+
 
 class TestQueryDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.data_dir = config.query_test_path
+        self.data_dir = os.path.join(config["working_dir"], config["query_test_path"])
         self.data_list = os.listdir(self.data_dir)
         
     def __len__(self):
@@ -121,7 +134,7 @@ class TestRefDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.data_dir = config.ref_test_path
+        self.data_dir = os.path.join(config["working_dir"], config["ref_test_path"])
         self.data_list = os.listdir(self.data_dir)
         
     def __len__(self):

@@ -1,11 +1,13 @@
 import yaml
 import torch
+import numpy as np
 from torch import optim
 import torch.nn as nn
 import torchvision.models as models
 from torch.utils.data import DataLoader, random_split
 from pytorchtools import EarlyStopping
 
+import random
 import os
 import gc
 import logging
@@ -17,7 +19,14 @@ from dataset import TrainDataset
 from utils import set_device
 
 device = set_device()
-torch.manual_seed(1000)
+
+# To reproduce nearly 100% identical results across runs, this code must be inserted.
+SEED = 1000
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 def train_per_epoch(model, dataloader, loss_fn, optimizer):
     train_loss = 0.0
@@ -89,7 +98,7 @@ def valid_per_epoch(model, dataloader, loss_fn):
 
 if __name__ == "__main__":
     # Choose loss function
-    loss_type = "triplet" # contrastive or triplet
+    loss_type = "contrastive" # contrastive or triplet
     
     with open('test_feat_extractor/config.yaml', 'r') as file:
         cfg = yaml.safe_load(file)
@@ -106,17 +115,24 @@ if __name__ == "__main__":
 
     if loss_type == "triplet":
         loss_fn = nn.TripletMarginLoss(margin=train_hps["margin"], p=2)
-    else:
+    elif loss_type == "contrastive":
         loss_fn = ContrastiveLoss(margin=train_hps["margin"])
+    else:
+        raise ValueError(f"Invalid loss type: {loss_type}")
     model = SiameseNetwork(embedding_network, end_layer=model_hps["end_layer"], embdim=model_hps["embedding_dim"]).to(device)
     
     optimizer = optim.Adam(params=model.parameters(), lr=train_hps["learning_rate"])
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=train_hps["step_size"], gamma=train_hps["gamma"])
     
     start_time_stamp = strftime("%m-%d_%H%M", localtime())
-    log_save_dir = os.path.join(cfg.working_dir, 'logs', f'{loss_type}_train_{start_time_stamp}.log')
+    log_save_dir = os.path.join(cfg["working_dir"], 'logs', f'{loss_type}_train_{start_time_stamp}.log')
     logging.basicConfig(filename=log_save_dir, \
         level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
+    
+    # reproduce results. torch seed, numpy seed.
+    logging.info(f"Device: {device}\n")
+    logging.info(f"seed number: {SEED}")
+    logging.info(f"Loss function: {loss_fn}\n")
     logging.info(f"Model Hyperparameters: {model_hps}\n")
     logging.info(f"Training Hyperparameters: {train_hps}\n")
 
@@ -124,11 +140,11 @@ if __name__ == "__main__":
     train_loss_history = []
     valid_loss_history = []
     iteration_number= 0
-    ckpt_path = os.path.join(cfg.working_dir, "checkpoints", f'{loss_type}_{start_time_stamp}.pt')
+    ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", f'{loss_type}_{start_time_stamp}.pt')
     early_stopping = EarlyStopping(patience=train_hps["early_stopping"], path=ckpt_path, verbose=True)
     
-    train_valid_dataset = TrainDataset(cfg)
-    train_dataset, valid_dataset = random_split(train_valid_dataset, cfg.train_val_split)
+    train_valid_dataset = TrainDataset(cfg, loss_type)
+    train_dataset, valid_dataset = random_split(train_valid_dataset, cfg["train_val_split"])
     train_dataloader = DataLoader(train_dataset, batch_size=train_hps["batch_size"], shuffle=True)
     valid_dataloader = DataLoader(valid_dataset, batch_size=train_hps["batch_size"], shuffle=True)
 

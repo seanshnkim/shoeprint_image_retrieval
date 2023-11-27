@@ -1,7 +1,8 @@
 from transformers import ViTMSNModel, ViTMSNConfig, AutoImageProcessor
 import torch
 from PIL import Image
-import cv2
+import numpy as np
+import os
 
 # Initializing a ViT MSN vit-msn-base style configuration
 configuration = ViTMSNConfig()
@@ -32,10 +33,38 @@ def extract_features(image_tensor):
     features = outputs.last_hidden_state
     return features
 
-# Example usage
-image_path = "test_feat_extractor/query/train/00001.jpg"  # Replace with your image path
-image_tensor = preprocess_image(image_path)
-features = extract_features(image_tensor)
 
-# features now contains the extracted feature vectors
-print(features.shape)
+# For query images, we need to extract features for each image in the query set
+NUM_QUERY = 300
+for i in range(1, NUM_QUERY+1):
+    save_fname = os.path.join("test_feat_extractor", "np_features_msn", "query", f"{i:05d}.npy")
+    if os.path.exists(save_fname):
+        continue
+    
+    if i <= 200:
+        image_path = os.path.join("test_feat_extractor", "query", "train", f"{i:05d}.jpg")
+    else:
+        image_path = os.path.join("test_feat_extractor", "query", "test", f"{i:05d}.jpg")
+        
+    image_tensor = preprocess_image(image_path)
+    features = extract_features(image_tensor)
+
+    # Save features to numpy file
+    features = features.numpy()
+    np.save(save_fname, features)
+
+
+# For reference images, we need to extract features for each image in the reference set
+NUM_REF = 1175
+for i in range(1, NUM_REF+1):
+    save_fname = os.path.join("test_feat_extractor", "np_features_msn", "ref", f"{i:05d}.npy")
+    if os.path.exists(save_fname):
+        continue
+    
+    image_path = os.path.join("test_feat_extractor", "ref", f"{i:05d}.png")
+    image_tensor = preprocess_image(image_path)
+    features = extract_features(image_tensor)
+
+    # Save features to numpy file
+    features = features.numpy()
+    np.save(save_fname, features)

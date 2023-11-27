@@ -1,12 +1,12 @@
 working_dir: "test_feat_extractor"
-image_labels: "label_table.csv"  # Assumes working_dir will be prepended
+image_labels: "label_table.csv"
 train_val_split:
   - 0.8
   - 0.2
-query_train_path: "query/train"  # Assumes working_dir will be prepended
-ref_train_path: "reference_v1"  # Assumes working_dir will be prepended
-query_test_path: "query/test"  # Assumes working_dir will be prepended
-ref_test_path: "ref"  # Assumes working_dir will be prepended
+query_train_path: "query/train" 
+ref_train_path: "reference_v1"
+query_test_path: "query/test"
+ref_test_path: "ref"
 
 model_hyperparameters:
   option_0:
