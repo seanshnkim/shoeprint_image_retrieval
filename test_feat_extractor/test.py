@@ -33,7 +33,7 @@ torch.backends.cudnn.benchmark = False
 
 # DO NOT CHANGE BATCH SIZE OF QUERY
 BATCH_SIZE_QUERY = 1
-BATCH_SIZE_REF = 25
+BATCH_SIZE_REF = 128
 
 # Choose loss function
 loss_type = "contrastive" # contrastive or triplet
@@ -60,9 +60,13 @@ test_ref_dataset = TestRefDataset(cfg)
 test_query_loader = DataLoader(test_query_dataset, batch_size=BATCH_SIZE_QUERY, shuffle=True)
 test_ref_loader= DataLoader(test_ref_dataset, batch_size=BATCH_SIZE_REF, shuffle=True)
 
-ONE_PCNT = int(len(test_ref_loader) * 0.01)
+#FIXME -  WRONG CALCULATION OF 1% and 5% of test_ref_loader 
+# > len(test_ref_loader) is now equal to (entire ref dataset size / BATCH_SIZE_REF)
+# ONE_PCNT = int(len(test_ref_loader) * 0.01)
 # FIVE_PCNT = int(len(test_ref_loader) * 0.05)
-FIVE_PCNT = 50
+ONE_PCNT = int(len(test_ref_dataset) * 0.01)
+FIVE_PCNT = int(len(test_ref_dataset) * 0.05)
+TOP_50 = 50
 
     
 if __name__ == "__main__":
@@ -108,7 +112,7 @@ if __name__ == "__main__":
         raise ValueError("BATCH_SIZE_QUERY must be 1")
     
     for qidx, (query_img, query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
-        hq = []
+        dist_label_tuple = []
         query_img = query_img.to(device)
 
         with torch.inference_mode():
@@ -136,14 +140,14 @@ if __name__ == "__main__":
                 #     heapq.heappush(hq, (euclidean_distance[j], ref_label[j].item()) )
                 
                 for j in range(len(euclidean_distance)):
-                    hq.append((euclidean_distance[j], ref_label[j].item()) )
+                    dist_label_tuple.append((euclidean_distance[j], ref_label[j].item()) )
         
-        hq_sorted = sorted(hq, key=lambda x: x[0])
-        top50_list = hq_sorted[:FIVE_PCNT]
-        top1pct_list = hq_sorted[:ONE_PCNT]
+        tup_sorted = sorted(dist_label_tuple, key=lambda x: x[0])
+        top50_list = tup_sorted[:TOP_50]
+        top1pct_list = tup_sorted[:ONE_PCNT]
         
-        top1pct_distance_list, top1pct_distance_index = [i[0] for i in top1pct_list], [i[1] for i in top1pct_list]
-        top50_distance_list, top50_distance_index = [i[0] for i in top50_list], [i[1] for i in top50_list]
+        top1pct_distance_index = [i[1] for i in top1pct_list]
+        top50_distance_index = [i[1] for i in top50_list]
         
         if gt_label in top1pct_distance_index:
             count_1 += 1
