@@ -21,7 +21,7 @@ from utils import set_device
 device = set_device()
 
 # To reproduce nearly 100% identical results across runs, this code must be inserted.
-SEED = 1000
+SEED = 2023
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 random.seed(SEED)

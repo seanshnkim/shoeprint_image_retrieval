@@ -138,3 +138,21 @@ class TestRefDataset(DefaultDataset):
     
     def __getitem__(self, idx):
         return super().__getitem__(idx)
+    
+    
+
+class TestFeatDataset(Dataset):
+    def __init__(self, config, feat_path):
+        self.feat_path = os.path.join(config["working_dir"], feat_path)
+        self.data_list = sorted(os.listdir(feat_path))
+        self.label_table = pd.read_csv(os.path.join(config["working_dir"], config["image_labels"]))
+        
+    def __len__(self):
+        return len(self.data_list)
+    
+    def __getitem__(self, idx):
+        feat = np.load(os.path.join(self.feat_path, self.data_list[idx]))
+        query_idx = int(self.data_list[idx].split('.')[0])
+        gt_query_label = int(self.label_table[self.label_table.cropped == query_idx]['gt'].item())
+        
+        return feat, query_idx, gt_query_label

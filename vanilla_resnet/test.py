@@ -41,7 +41,7 @@ with open('test_feat_extractor/config.yaml', 'r') as file:
     cfg = yaml.safe_load(file)
 
 # choose which model ckpt to load
-ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", 'contrastive_11-27_1302.pt')
+ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", 'contrastive_11-27_1615.pt')
 
 model_hps = cfg['model_hyperparameters']['option_0']
 train_hps = cfg['training_hyperparameters']['option_0']
@@ -128,17 +128,6 @@ if __name__ == "__main__":
                 euclidean_distance = F.pairwise_distance(output1, output2)
                 euclidean_distance = euclidean_distance.cpu().detach().numpy()
                 
-                '''#FIXME - Error that took 3 hours to find!! 
-                # --> Limiting the size of heap to 50 initially does not guarantee
-                # that the top 50 elements are the smallest 50 elements. '''       
-                # for j in range(len(euclidean_distance)):
-                #     if len(top50_list) < FIVE_PCNT:
-                #         heapq.heappush(top50_list, (euclidean_distance[j], ref_label[j].item()) )
-                #     else:
-                #         heapq.heappushpop(top50_list, (euclidean_distance[j], ref_label[j].item()) )
-                # for j in range(len(euclidean_distance)):
-                #     heapq.heappush(hq, (euclidean_distance[j], ref_label[j].item()) )
-                
                 for j in range(len(euclidean_distance)):
                     dist_label_tuple.append((euclidean_distance[j], ref_label[j].item()) )
         
@@ -165,3 +154,6 @@ if __name__ == "__main__":
             del gt_label
             gc.collect()
             torch.cuda.empty_cache()
+    
+    logging.info(f'Final top 1% accuracy: {(count_1 / total) * 100} %')
+    logging.info(f'FINAL top 50 accuracy: {(count_5 / total) * 100} %')
