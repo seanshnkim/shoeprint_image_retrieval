@@ -15,7 +15,6 @@ def show_plot(iteration,loss):
     plt.plot(iteration,loss)
     plt.show()
     
-
 def set_device():
     if torch.cuda.is_available():
         device='cuda:0'

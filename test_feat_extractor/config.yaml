@@ -1,0 +1,18 @@
+working_dir: "test_feat_extractor"
+image_labels: "label_table.csv"
+
+data path:
+   query_train_path: "query/train"
+   ref_train_path: "reference_v1"
+   query_test_path: "query/test"
+   ref_test_path: "ref"
+
+msn_large:
+   feat_combined: False
+   query: "test_feat_extractor/np_features_msn/query"
+   ref: "test_feat_extractor/np_features_msn/ref"
+
+naver:
+   feat_combined: True
+   query: "test_feat_extractor/np_features_naver/cropped_query_features.npy"
+   ref: "test_feat_extractor/np_features_naver/reference_features.npy"

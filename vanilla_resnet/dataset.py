@@ -18,9 +18,9 @@ torch.backends.cudnn.benchmark = False
 
 class DefaultDataset(Dataset):
     def __init__(self, config):
-        self.data_dir = os.path.join(config["working_dir"], config["query_test_path"])
+        self.data_dir = config["query_test_path"]
         self.data_list = sorted(os.listdir(self.data_dir))
-        self.label_table = pd.read_csv(os.path.join(config["working_dir"], config["image_labels"]))
+        self.label_table = pd.read_csv(config["image_labels"])
         self.transform = transforms.Compose([transforms.Lambda(lambda img: img.convert('RGB')),
                                              transforms.Resize((100,100)),
                                              transforms.ToTensor()])
@@ -42,10 +42,10 @@ class TrainDataset(DefaultDataset):
         super().__init__(config)
         
         self.loss_function = loss_function
-        self.data_dir = os.path.join(config["working_dir"], config["query_train_path"])
+        self.data_dir = config["query_train_path"]
         self.data_list = sorted(os.listdir(self.data_dir))
         
-        self.ref_dir = os.path.join(config["working_dir"], config["ref_train_path"])
+        self.ref_dir = config["ref_train_path"]
         self.ref_data_list = sorted(os.listdir(self.ref_dir))
         
     def __len__(self):
@@ -130,7 +130,7 @@ class TestRefDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.data_dir = os.path.join(config["working_dir"], config["ref_test_path"])
+        self.data_dir = config["ref_test_path"]
         self.data_list = sorted(os.listdir(self.data_dir))
         
     def __len__(self):
@@ -138,21 +138,3 @@ class TestRefDataset(DefaultDataset):
     
     def __getitem__(self, idx):
         return super().__getitem__(idx)
-    
-    
-
-class TestFeatDataset(Dataset):
-    def __init__(self, config, feat_path):
-        self.feat_path = os.path.join(config["working_dir"], feat_path)
-        self.data_list = sorted(os.listdir(feat_path))
-        self.label_table = pd.read_csv(os.path.join(config["working_dir"], config["image_labels"]))
-        
-    def __len__(self):
-        return len(self.data_list)
-    
-    def __getitem__(self, idx):
-        feat = np.load(os.path.join(self.feat_path, self.data_list[idx]))
-        query_idx = int(self.data_list[idx].split('.')[0])
-        gt_query_label = int(self.label_table[self.label_table.cropped == query_idx]['gt'].item())
-        
-        return feat, query_idx, gt_query_label
