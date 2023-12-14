@@ -37,7 +37,8 @@ BATCH_SIZE_REF = 128
 
 # Choose loss function
 loss_type = "contrastive" # contrastive or triplet
-with open('test_feat_extractor/config.yaml', 'r') as file:
+working_dir = os.path.dirname(__file__)
+with open(os.path.join(working_dir, 'config.yaml'), 'r') as file:
     cfg = yaml.safe_load(file)
 
 # choose which model ckpt to load

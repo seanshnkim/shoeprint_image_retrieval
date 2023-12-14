@@ -104,7 +104,6 @@ class TrainDataset(DefaultDataset):
             negative_ref_img = self.transform(negative_ref_img)
             
             return query_img, positive_ref_img, negative_ref_img
-
         else:
             raise NotImplementedError
 
@@ -113,7 +112,7 @@ class TestQueryDataset(DefaultDataset):
     def __init__(self, config):
         super().__init__(config)
         
-        self.data_dir = os.path.join(config["working_dir"], config["query_test_path"])
+        self.data_dir = config["query_test_path"]
         self.data_list = sorted(os.listdir(self.data_dir))
         
     def __len__(self):

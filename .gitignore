@@ -169,7 +169,20 @@ cython_debug/
 # checkpoints
 *.ckpt
 *.pt
+*.tar
+*.bin
 
 # zip file
 *.zip
 .vscode/launch.json
+
+# ImagNet Dataset
+ILSVRC2012_img_val/
+*.JPEG
+
+query
+ref
+
+*.csv
+*.xlsx
+*.txt

@@ -1,5 +1,38 @@
 working_dir: "test_feat_extractor"
 image_labels: "label_table.csv"
+train_val_split:
+  - 0.8
+  - 0.2
+query_train_path: "query/train" 
+ref_train_path: "reference_v1"
+query_test_path: "query/test"
+ref_test_path: "ref"
+
+model_hyperparameters:
+  option_0:
+    end_layer: 7
+    embedding_dim: 500
+    model_name: "resnet50"
+
+training_hyperparameters:
+  option_0:
+    batch_size: 128
+    epochs: 300
+    early_stopping: 15
+    margin: 5.0
+    learning_rate: 0.0001
+    optimizer: "Adam"
+    step_size: 5
+    gamma: 0.5
+  option_1:
+    batch_size: 16
+    epochs: 300
+    early_stopping: 15
+    margin: 2.0
+    learning_rate: 0.001
+    optimizer: "Adam"
+    step_size: 50
+    gamma: 0.5
 
 data path:
    query_train_path: "query/train"
@@ -7,12 +40,38 @@ data path:
    query_test_path: "query/test"
    ref_test_path: "ref"
 
+# msn_large:
+#    trained: False
+#    feat_combined: False
+#    query: "test_feat_extractor/np_features_msn/query"
+#    ref: "test_feat_extractor/np_features_msn/ref"
+
+# msn_large:
+#    trained: True
+#    feat_combined: False
+#    query: "../msn_shoeprint_retrieval/np_features_msn-large-finetuned/query"
+#    ref:   "../msn_shoeprint_retrieval/np_features_msn-large-finetuned/ref"
+
 msn_large:
+   trained: False
    feat_combined: False
-   query: "test_feat_extractor/np_features_msn/query"
-   ref: "test_feat_extractor/np_features_msn/ref"
+   query: "../msn_shoeprint_retrieval/np_features_msn-large-base/query"
+   ref:   "../msn_shoeprint_retrieval/np_features_msn-large-base/ref"
 
 naver:
+   trained: False
    feat_combined: True
    query: "test_feat_extractor/np_features_naver/cropped_query_features.npy"
    ref: "test_feat_extractor/np_features_naver/reference_features.npy"
+
+vitl16_600ep-base:
+    trained: False
+    feat_combined: False
+    query: "../msn_shoeprint_retrieval/np_features_vitl16_600ep-base/query"
+    ref: "../msn_shoeprint_retrieval/np_features_vitl16_600ep-base/ref"
+
+vitl16_600ep_fid300SSL:
+    trained: True
+    feat_combined: False
+    query: "../msn_shoeprint_retrieval/np_features_vitl16_600ep_fid300SSL-finetuned/query"
+    ref: "../msn_shoeprint_retrieval/np_features_vitl16_600ep_fid300SSL-finetuned/ref"

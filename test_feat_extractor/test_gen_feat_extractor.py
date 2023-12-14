@@ -46,7 +46,6 @@ if cfg[args.model_name]["feat_combined"]:
     cfg[args.model_name]["ref"] = ref_save_dir
     cfg[args.model_name]["query"] = query_save_dir
 
-
 BATCH_SIZE_QUERY = 1
 BATCH_SIZE_REF = 128
 test_query_dataset = FeatQueryDataset(cfg, cfg[args.model_name]["query"])
@@ -64,20 +63,23 @@ if __name__ == "__main__":
     log_save_dir = os.path.join(default_working_dir, 'logs', f'{cur_fname}_{start_time_stamp}.log')
     logging.basicConfig(filename=log_save_dir, \
             level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
-    logging.info(f"model_name: {args.model_name}")
+    logging.info(f"model_name: {args.model_name}\n")
+    logging.info(f"trained: {cfg[args.model_name]['trained']}\n")
+    
+    output_shape = []
     
     count_1 = 0
     count_5 = 0
     total = 0
     
     for qidx, (query_feat, query_idx, gt_label) in tqdm(enumerate(test_query_loader)):
+        if qidx == 0:
+            output_shape = query_feat.shape
         dist_label_tuple = []
 
         with torch.inference_mode():
             for i, (ref_feats, ref_indices) in enumerate(test_ref_loader):
                 # if model == msn_large, ref_feats.shape = (128, 197, 1024) query_feats.shape = (1, 197, 1024)
-                # euclidean_distance = F.pairwise_distance(query_feat, ref_feats)
-                # euclidean_distance = euclidean_distance.cpu().detach().numpy()
                 euclidean_distances = torch.sqrt(torch.sum((ref_feats - query_feat) ** 2, dim=-1)).mean(dim=-1)
 
                 for j in range(len(euclidean_distances)):
@@ -107,5 +109,6 @@ if __name__ == "__main__":
             gc.collect()
             torch.cuda.empty_cache()
     
+    logging.info(f"query_feat.shape: {output_shape}")
     logging.info(f'Final top 1% accuracy: {(count_1 / total) * 100} %')
     logging.info(f'FINAL top 50 accuracy: {(count_5 / total) * 100} %')
