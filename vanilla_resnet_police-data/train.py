@@ -1,0 +1,175 @@
+import yaml
+import torch
+import numpy as np
+from torch import optim
+import torch.nn as nn
+import torchvision.models as models
+from torchvision import transforms
+from torch.utils.data import DataLoader, random_split
+from pytorchtools import EarlyStopping
+
+import random
+import os
+import gc
+import logging
+from time import strftime, localtime
+
+from loss import ContrastiveLoss
+from nets.siamese_net import SiameseNetwork
+from dataset import TrainTripletDataset, TrainContrastiveDataset
+from utils import set_device
+
+device = set_device()
+
+# To reproduce nearly 100% identical results across runs, this code must be inserted.
+SEED = 2023
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+def train_per_epoch(model, dataloader, loss_fn, optimizer):
+    train_loss = 0.0
+    model.train()
+    model.requires_grad_ = True
+    model.zero_grad()
+    
+    for i, data in enumerate(dataloader):
+        imgs = [img.to(device) for img in data]
+        
+        optimizer.zero_grad()
+        
+        if type(loss_fn) == nn.TripletMarginLoss:
+            anchor, pos, neg = imgs
+            outputs = model(anchor, pos, neg)
+            loss = loss_fn(*outputs)
+        else:
+            # Contrastive Loss
+            pos, neg, label = imgs
+            outputs = model(pos, neg)
+            loss = loss_fn(*outputs, label)
+        
+        del imgs
+        if i % 100 == 0:
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        loss.backward()
+        optimizer.step()
+
+        train_loss += loss.item()
+
+        del loss, outputs
+        if i % 100 == 0:
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    train_loss /= len(dataloader.dataset)
+    return train_loss
+
+
+def valid_per_epoch(model, dataloader, loss_fn):
+    valid_loss = 0.0
+    model.eval()
+    with torch.inference_mode():
+        for i, data in enumerate(dataloader):
+            imgs = [img.to(device) for img in data]
+            
+            if type(loss_fn) == nn.TripletMarginLoss:
+                anchor, pos, neg = imgs
+                outputs = model(anchor, pos, neg)
+                loss = loss_fn(*outputs)
+            else:
+                # Contrastive Loss
+                pos, neg, label = imgs
+                outputs = model(pos, neg)
+                loss = loss_fn(*outputs, label)
+            
+            valid_loss += loss.item()
+
+            del loss, outputs
+            if i % 100 == 0:
+                gc.collect()
+                torch.cuda.empty_cache()
+
+    valid_loss /= len(dataloader.dataset)
+    return valid_loss
+
+train_transform = transforms.Compose([transforms.Lambda(lambda img: img.convert('RGB')),
+                                             transforms.Resize((100,100)),
+                                             transforms.ToTensor()])
+
+if __name__ == "__main__":
+    # Choose loss function
+    loss_type = "contrastive" # contrastive or triplet
+    
+    with open('vanilla_resnet_police-data/config.yaml', 'r') as file:
+        cfg = yaml.safe_load(file)
+    
+    model_hps = cfg['model_hyperparameters']['option_0']
+    train_hps = cfg['training_hyperparameters']['option_0']
+    
+    if model_hps["model_name"] == "resnet50":
+        resnet = models.resnet50(weights='ResNet50_Weights.IMAGENET1K_V2')
+    else:
+        resnet = models.resnet101(weights='ResNet101_Weights.IMAGENET1K_V2')
+
+    embedding_network = nn.Sequential(*list(resnet.children())[:model_hps["end_layer"]]).to(device)
+
+    if loss_type == "triplet":
+        loss_fn = nn.TripletMarginLoss(margin=train_hps["margin"], p=2)
+        train_valid_dataset = TrainTripletDataset(annotations_file=cfg["image_labels"], \
+            img_dir=cfg['data_path']['query_train_path'], ref_dir=cfg['data_path']["ref_path"], transform=train_transform)
+    elif loss_type == "contrastive":
+        loss_fn = ContrastiveLoss(margin=train_hps["margin"])
+        train_valid_dataset = TrainContrastiveDataset(annotations_file=cfg["image_labels"], \
+            img_dir=cfg['data_path']['query_train_path'], ref_dir=cfg['data_path']["ref_path"], transform=train_transform)
+    else:
+        raise ValueError(f"Invalid loss type: {loss_type}")
+    
+    model = SiameseNetwork(embedding_network, end_layer=model_hps["end_layer"], embdim=model_hps["embedding_dim"]).to(device)
+    
+    optimizer = optim.Adam(params=model.parameters(), lr=train_hps["learning_rate"])
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=train_hps["step_size"], gamma=train_hps["gamma"])
+    
+    start_time_stamp = strftime("%m-%d_%H%M", localtime())
+    log_save_dir = os.path.join(cfg["working_dir"], 'logs', f'{loss_type}_train_{start_time_stamp}.log')
+    logging.basicConfig(filename=log_save_dir, \
+        level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
+    
+    # reproduce results. torch seed, numpy seed.
+    logging.info(f"Device: {device}\n")
+    logging.info(f"seed number: {SEED}")
+    logging.info(f"Loss function: {loss_fn}\n")
+    logging.info(f"Model Hyperparameters: {model_hps}\n")
+    logging.info(f"Training Hyperparameters: {train_hps}\n")
+
+    counter = []
+    train_loss_history = []
+    valid_loss_history = []
+    iteration_number= 0
+    ckpt_path = os.path.join(cfg["working_dir"], "checkpoints", f'{loss_type}_{start_time_stamp}.pt')
+    early_stopping = EarlyStopping(patience=train_hps["early_stopping"], path=ckpt_path, verbose=True)
+    
+    train_dataset, valid_dataset = random_split(train_valid_dataset, cfg["train_val_split"])
+    train_dataloader = DataLoader(train_dataset, batch_size=train_hps["batch_size"], shuffle=True)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=train_hps["batch_size"], shuffle=True)
+
+
+    # ========= TRAINING =========
+    for epoch in range(1, train_hps["epochs"] + 1):
+        scheduler.step()
+        train_loss = train_per_epoch(model, train_dataloader, loss_fn, optimizer)
+        valid_loss = valid_per_epoch(model, valid_dataloader, loss_fn)
+
+        logging.info('Epoch number [{}] Train Loss: {:.4f}, Valid Loss: {:.4f}'.format(epoch, train_loss, valid_loss))
+        iteration_number += 1
+        counter.append(iteration_number)
+        train_loss_history.append(train_loss)
+        valid_loss_history.append(valid_loss)
+
+        early_stopping(valid_loss, model)
+        
+        if early_stopping.early_stop:
+            break

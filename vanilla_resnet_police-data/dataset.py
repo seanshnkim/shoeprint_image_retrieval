@@ -40,38 +40,115 @@ class CustomImageDataset(Dataset):
         return sample
 
 
-class TrainDataset(Dataset):
-    def __init__(self, annotations_file, img_dir, transform=None, target_transform=None):
+class TrainContrastiveDataset(Dataset):
+    def __init__(self, annotations_file, img_dir, ref_dir, transform=None, target_transform=None):
         self.label_table = pd.read_csv(annotations_file)
         self.img_dir = img_dir
         self.data_list = sorted(os.listdir(self.img_dir))
         self.transform = transform
         self.target_transform = target_transform
-        self.ref_dir = 'police_dataset/ref'
+        self.ref_dir = ref_dir
         self.ref_data_list = sorted(os.listdir(self.ref_dir))
     
     def __len__(self):
         return len(self.data_list)
     
     def __getitem__(self, idx):
-        query_img_name, gt_ref_img_name = self.img_labels.iloc[idx, 0], self.img_labels.iloc[idx, 1]
+        # query_img_name, gt_ref_img_name = self.img_labels.iloc[idx, 0], self.img_labels.iloc[idx, 1]
+        query_img_name = self.data_list[idx]
+        # Can be multiple ref images
+        gt_ref_img_name = self.label_table[self.label_table["query"] == query_img_name]['ref'].values[0]
         query_img = Image.open(os.path.join(self.img_dir, query_img_name))
-        query_img = self.transform(query_img)
-        
-        choose_gt = random.choice(True, False)
-        
+
+        choose_gt = random.choice([True, False])
         if choose_gt:
             ref_img = Image.open(os.path.join(self.ref_dir, \
-                 f'{gt_ref_img_name}.png'))
-            
+                 gt_ref_img_name))
         else:
             while True:
                 random_ref_img_name = random.choice(self.ref_data_list)
-                
                 # FIXME: not a hard negative.
                 if random_ref_img_name != gt_ref_img_name:
                     ref_img = Image.open(os.path.join(self.ref_dir, random_ref_img_name))
                     break
         
+        query_img = self.transform(query_img)
         ref_img = self.transform(ref_img)
         return query_img, ref_img, torch.from_numpy(np.array([int(choose_gt)], dtype=np.float32))
+    
+
+
+class TrainTripletDataset(Dataset):
+    def __init__(self, annotations_file, img_dir, ref_dir, transform=None, target_transform=None):
+        self.label_table = pd.read_csv(annotations_file)
+        self.img_dir = img_dir
+        self.data_list = sorted(os.listdir(self.img_dir))
+        self.transform = transform
+        self.target_transform = target_transform
+        self.ref_dir = ref_dir
+        self.ref_data_list = sorted(os.listdir(self.ref_dir))
+    
+    def __len__(self):
+        return len(self.data_list)
+    
+    def __getitem__(self, idx):
+        query_img_name = self.data_list[idx]
+        # Can be multiple ref images
+        gt_ref_img_name = self.label_table[self.label_table["query"] == query_img_name]['ref'].values[0]
+        query_img = Image.open(os.path.join(self.img_dir, query_img_name))
+        
+        positive_ref_img = Image.open(os.path.join(self.ref_dir, gt_ref_img_name))
+        negative_ref_img = None
+        while True:
+            random_ref_img_name = random.choice(self.ref_data_list)
+            # FIXME: not a hard negative.
+            if random_ref_img_name != gt_ref_img_name:
+                negative_ref_img = Image.open(os.path.join(self.ref_dir, random_ref_img_name))
+                break
+        
+        query_img = self.transform(query_img)
+        positive_ref_img = self.transform(positive_ref_img)
+        negative_ref_img = self.transform(negative_ref_img)
+        return query_img, positive_ref_img, negative_ref_img
+
+
+class TestQueryDataset(Dataset):
+    def __init__(self, annotations_file, img_dir, ref_dir, transform=None, target_transform=None):
+        self.label_table = pd.read_csv(annotations_file)
+        self.img_dir = img_dir
+        self.data_list = sorted(os.listdir(self.img_dir))
+        self.transform = transform
+        self.target_transform = target_transform
+        self.ref_dir = ref_dir
+        self.ref_data_list = sorted(os.listdir(self.ref_dir))
+        
+    def __len__(self):
+        return len(self.data_list)
+    
+    def __getitem__(self, idx):
+        query_img_name = self.data_list[idx]
+        # Can be multiple ref images
+        gt_ref_img_name = self.label_table[self.label_table["query"] == query_img_name]['ref'].values[0]
+        query_img = Image.open(os.path.join(self.img_dir, query_img_name))
+        
+        query_img = self.transform(query_img)
+        return query_img, gt_ref_img_name
+    
+    
+class TestRefDataset(Dataset):
+    def __init__(self, annotations_file, img_dir, transform=None, target_transform=None):
+        self.label_table = pd.read_csv(annotations_file)
+        self.img_dir = img_dir
+        self.data_list = sorted(os.listdir(self.img_dir))
+        self.transform = transform
+        self.target_transform = target_transform
+        
+    def __len__(self):
+        return len(self.data_list)
+    
+    def __getitem__(self, idx):
+        ref_img_name = self.data_list[idx]
+        ref_img = Image.open(os.path.join(self.img_dir, ref_img_name))
+        
+        ref_img = self.transform(ref_img)
+        return ref_img, ref_img_name

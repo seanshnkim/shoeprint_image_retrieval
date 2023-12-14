@@ -1,0 +1,35 @@
+working_dir: "vanilla_resnet_police-data"
+image_labels: "police_dataset/label_table_1211_1124.csv"
+train_val_split:
+  - 0.8
+  - 0.2
+model_hyperparameters:
+  option_0:
+    end_layer: 7
+    embedding_dim: 500
+    model_name: "resnet50"
+
+training_hyperparameters:
+  option_0:
+    batch_size: 128
+    epochs: 300
+    early_stopping: 15
+    margin: 5.0
+    learning_rate: 0.0001
+    optimizer: "Adam"
+    step_size: 5
+    gamma: 0.5
+  option_1:
+    batch_size: 16
+    epochs: 300
+    early_stopping: 15
+    margin: 2.0
+    learning_rate: 0.001
+    optimizer: "Adam"
+    step_size: 50
+    gamma: 0.5
+
+data_path:
+   query_train_path: "police_dataset/query/train"
+   ref_path: "police_dataset/ref"
+   query_test_path: "police_dataset/query/test"
